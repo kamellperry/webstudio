@@ -35,9 +35,7 @@ export const $project = atom<Project | undefined>();
 
 export const $publisherHost = atom<string>("wstd.work");
 
-export const $imageLoader = atom<ImageLoader>(
-  createImageLoader({ imageBaseUrl: "" })
-);
+export const $imageLoader = atom<ImageLoader>(createImageLoader({}));
 
 export const $publishedOrigin = computed(
   [$project, $publisherHost],
@@ -331,6 +329,7 @@ export const $authPermit = atom<AuthPermit>("view");
 export const $authTokenPermissions = atom<TokenPermissions>({
   canClone: true,
   canCopy: true,
+  canPublish: false,
 });
 
 export const $authToken = atom<string | undefined>(undefined);
@@ -352,37 +351,46 @@ export const $isDesignModeAllowed = computed([$authPermit], (authPermit) => {
   return authPermit !== "edit";
 });
 
-let previousBuilderMode: BuilderMode | undefined = undefined;
+let lastEditableBuilderMode: Exclude<BuilderMode, "preview"> | undefined =
+  undefined;
 
+const getNextEditableMode = (): "design" | "content" => {
+  if (lastEditableBuilderMode === undefined) {
+    if ($isDesignModeAllowed.get()) {
+      return "design";
+    }
+
+    return "content";
+  }
+  return lastEditableBuilderMode;
+};
+
+/**
+ * - preview, preview -> 'last known editable mode i.e. design or content' ?? 'default editable mode'
+ * - preview, design -> design
+ * - preview, content -> content
+ *
+ * - design, design -> preview
+ * - design, preview -> preview
+ * - design, content -> content
+ *
+ * - content, content -> preview
+ * - content, preview -> preview
+ * - content, design -> design
+ */
 export const toggleBuilderMode = (mode: BuilderMode) => {
   const currentMode = $builderMode.get();
 
   if (currentMode === mode) {
-    if (previousBuilderMode !== undefined) {
-      setBuilderMode(previousBuilderMode);
-      previousBuilderMode = currentMode;
+    if (mode === "preview") {
+      setBuilderMode(getNextEditableMode());
       return;
     }
 
-    // Switch back
-    const availableModes: BuilderMode[] = [];
-    if ($isDesignModeAllowed.get() && currentMode !== "design") {
-      availableModes.push("design");
-    }
-    if ($isContentModeAllowed.get() && currentMode !== "content") {
-      availableModes.push("content");
-    }
-    if (currentMode !== "preview") {
-      availableModes.push("preview");
-    }
-
-    setBuilderMode(availableModes[0] ?? "preview");
-
-    previousBuilderMode = currentMode;
+    setBuilderMode("preview");
     return;
   }
 
-  previousBuilderMode = currentMode;
   setBuilderMode(mode);
 };
 
@@ -401,6 +409,7 @@ export const setBuilderMode = (mode: BuilderMode | null) => {
     toast.info("Design mode is not available for content edit links.");
 
     $builderMode.set("content");
+    lastEditableBuilderMode = "content";
     return;
   }
 
@@ -410,7 +419,12 @@ export const setBuilderMode = (mode: BuilderMode | null) => {
       ? "content"
       : "preview";
 
-  $builderMode.set(mode ?? defaultMode);
+  const nextMode = mode ?? defaultMode;
+
+  $builderMode.set(nextMode);
+  if (nextMode !== "preview") {
+    lastEditableBuilderMode = nextMode;
+  }
 };
 
 export const $toastErrors = atom<string[]>([]);

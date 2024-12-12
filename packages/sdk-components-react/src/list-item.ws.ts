@@ -16,9 +16,11 @@ const presetStyle = {
 export const meta: WsComponentMeta = {
   category: "general",
   type: "container",
-  requiredAncestors: ["List"],
   constraints: {
-    relation: "parent",
+    // cannot use parent relation here
+    // because list item can be put inside of collection or slot
+    // perhaps can be eventually fixed with tag matchers
+    relation: "ancestor",
     component: { $eq: "List" },
   },
   description: "Adds a new item to an existing list.",

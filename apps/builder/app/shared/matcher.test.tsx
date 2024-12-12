@@ -1,17 +1,25 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { renderJsx, $, ExpressionValue } from "@webstudio-is/sdk/testing";
 import { coreMetas } from "@webstudio-is/react-sdk";
 import * as baseMetas from "@webstudio-is/sdk-components-react/metas";
 import type { WsComponentMeta } from "@webstudio-is/react-sdk";
 import type { Matcher, WebstudioFragment } from "@webstudio-is/sdk";
 import {
-  findClosestContainer,
+  findClosestNonTextualContainer,
   findClosestInstanceMatchingFragment,
   isInstanceMatching,
   isTreeMatching,
+  findClosestContainer,
 } from "./matcher";
 
 const metas = new Map(Object.entries({ ...coreMetas, ...baseMetas }));
+metas.set("ListItem", {
+  ...baseMetas.ListItem,
+  constraints: {
+    relation: "parent",
+    component: { $eq: "List" },
+  },
+});
 
 describe("is instance matching", () => {
   test("matches self with self matcher", () => {
@@ -563,6 +571,72 @@ describe("is instance matching", () => {
       })
     ).toBeFalsy();
   });
+
+  test("provide error message when negated matcher is failed", () => {
+    const onError = vi.fn();
+    isInstanceMatching({
+      ...renderJsx(
+        <$.Body ws:id="body">
+          <$.Box ws:id="box"></$.Box>
+        </$.Body>
+      ),
+      instanceSelector: ["box", "body"],
+      query: {
+        relation: "self",
+        component: { $nin: ["Box", "Text"] },
+      },
+      onError,
+    });
+    expect(onError).toHaveBeenLastCalledWith("Box or Text is not acceptable");
+    isInstanceMatching({
+      ...renderJsx(
+        <$.Body ws:id="body">
+          <$.Box ws:id="box">
+            <$.ListItem ws:id="listitem"></$.ListItem>
+          </$.Box>
+        </$.Body>
+      ),
+      instanceSelector: ["listitem", "box", "body"],
+      query: {
+        relation: "ancestor",
+        component: { $nin: ["Box", "Text"] },
+      },
+      onError,
+    });
+    expect(onError).toHaveBeenLastCalledWith("Box or Text is not acceptable");
+  });
+
+  test("provide error message when positive matcher is failed", () => {
+    const onError = vi.fn();
+    isInstanceMatching({
+      ...renderJsx(
+        <$.Body ws:id="body">
+          <$.ListItem ws:id="listitem"></$.ListItem>
+        </$.Body>
+      ),
+      instanceSelector: ["box", "body"],
+      query: {
+        relation: "self",
+        component: { $in: ["Box", "Text"] },
+      },
+      onError,
+    });
+    expect(onError).toHaveBeenLastCalledWith("Box or Text is missing");
+    isInstanceMatching({
+      ...renderJsx(
+        <$.Body ws:id="body">
+          <$.ListItem ws:id="listitem"></$.ListItem>
+        </$.Body>
+      ),
+      instanceSelector: ["box", "body"],
+      query: {
+        relation: "ancestor",
+        component: { $in: ["Box", "Text"] },
+      },
+      onError,
+    });
+    expect(onError).toHaveBeenLastCalledWith("Box or Text is missing");
+  });
 });
 
 describe("is tree matching", () => {
@@ -781,6 +855,25 @@ describe("find closest instance matching fragment", () => {
       })
     ).toEqual(1);
   });
+
+  test("report first error", () => {
+    const onError = vi.fn();
+    const { instances } = renderJsx(<$.Body ws:id="body"></$.Body>);
+    const fragment = createFragment(
+      // only children are tested
+      <>
+        <$.ListItem ws:id="listitem"></$.ListItem>
+      </>
+    );
+    findClosestInstanceMatchingFragment({
+      metas,
+      instances,
+      instanceSelector: ["body"],
+      fragment,
+      onError,
+    });
+    expect(onError).toHaveBeenLastCalledWith("List is missing");
+  });
 });
 
 describe("find closest container", () => {
@@ -800,9 +893,71 @@ describe("find closest container", () => {
     ).toEqual(1);
   });
 
-  test("skips containers with text", () => {
+  test("allow containers with text", () => {
     expect(
       findClosestContainer({
+        ...renderJsx(
+          <$.Body ws:id="body">
+            <$.Box ws:id="box">
+              <$.Box ws:id="box-with-text">text</$.Box>
+            </$.Box>
+          </$.Body>
+        ),
+        metas,
+        instanceSelector: ["box-with-text", "box", "body"],
+      })
+    ).toEqual(0);
+  });
+
+  test("allow containers with expression", () => {
+    expect(
+      findClosestContainer({
+        ...renderJsx(
+          <$.Body ws:id="body">
+            <$.Box ws:id="box">
+              <$.Box ws:id="box-with-expr">
+                {new ExpressionValue("1 + 1")}
+              </$.Box>
+            </$.Box>
+          </$.Body>
+        ),
+        metas,
+        instanceSelector: ["box-with-expr", "box", "body"],
+      })
+    ).toEqual(0);
+  });
+
+  test("allow root with text", () => {
+    expect(
+      findClosestContainer({
+        ...renderJsx(<$.Body ws:id="body">text</$.Body>),
+        metas,
+        instanceSelector: ["body"],
+      })
+    ).toEqual(0);
+  });
+});
+
+describe("find closest non textual container", () => {
+  test("skips non-container instances", () => {
+    expect(
+      findClosestNonTextualContainer({
+        ...renderJsx(
+          <$.Body ws:id="body">
+            <$.Box ws:id="box">
+              <$.Image ws:id="image" />
+            </$.Box>
+          </$.Body>
+        ),
+        metas,
+        instanceSelector: ["image", "box", "body"],
+      })
+    ).toEqual(1);
+  });
+
+  test("skips containers with text", () => {
+    expect(
+      findClosestNonTextualContainer({
         ...renderJsx(
           <$.Body ws:id="body">
             <$.Box ws:id="box">
@@ -818,7 +973,7 @@ describe("find closest container", () => {
 
   test("skips containers with expression", () => {
     expect(
-      findClosestContainer({
+      findClosestNonTextualContainer({
         ...renderJsx(
           <$.Body ws:id="body">
             <$.Box ws:id="box">
@@ -836,7 +991,7 @@ describe("find closest container", () => {
 
   test("allow root with text", () => {
     expect(
-      findClosestContainer({
+      findClosestNonTextualContainer({
         ...renderJsx(<$.Body ws:id="body">text</$.Body>),
         metas,
         instanceSelector: ["body"],
