@@ -1,4 +1,5 @@
 import { describe, expect, test, vi } from "vitest";
+import type { JSX } from "react";
 import { renderJsx, $, ExpressionValue } from "@webstudio-is/sdk/testing";
 import { coreMetas } from "@webstudio-is/react-sdk";
 import * as baseMetas from "@webstudio-is/sdk-components-react/metas";
@@ -985,6 +986,24 @@ describe("find closest non textual container", () => {
         ),
         metas,
         instanceSelector: ["box-with-expr", "box", "body"],
+      })
+    ).toEqual(1);
+  });
+
+  test("skips containers with rich text children", () => {
+    expect(
+      findClosestNonTextualContainer({
+        ...renderJsx(
+          <$.Body ws:id="body">
+            <$.Box ws:id="box">
+              <$.Box ws:id="box-with-bold">
+                <$.Bold ws:id="bold"></$.Bold>
+              </$.Box>
+            </$.Box>
+          </$.Body>
+        ),
+        metas,
+        instanceSelector: ["box-with-bold", "box", "body"],
       })
     ).toEqual(1);
   });

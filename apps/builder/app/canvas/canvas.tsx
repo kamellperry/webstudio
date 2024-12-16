@@ -3,11 +3,11 @@ import { ErrorBoundary, type FallbackProps } from "react-error-boundary";
 import { useStore } from "@nanostores/react";
 import type { Instances } from "@webstudio-is/sdk";
 import {
-  type Params,
   type Components,
   coreMetas,
   corePropsMetas,
 } from "@webstudio-is/react-sdk";
+import { wsImageLoader } from "@webstudio-is/image";
 import { ReactSdkContext } from "@webstudio-is/react-sdk/runtime";
 import * as baseComponents from "@webstudio-is/sdk-components-react";
 import * as baseComponentMetas from "@webstudio-is/sdk-components-react/metas";
@@ -48,6 +48,7 @@ import {
   $isDesignMode,
   $isContentMode,
   subscribeModifierKeys,
+  assetBaseUrl,
 } from "~/shared/nano-states";
 import { useDragAndDrop } from "./shared/use-drag-drop";
 import {
@@ -61,10 +62,8 @@ import { subscribeInstanceHovering } from "./instance-hovering";
 import { useHashLinkSync } from "~/shared/pages";
 import { useMount } from "~/shared/hook-utils/use-mount";
 import { subscribeInterceptedEvents } from "./interceptor";
-import { createImageLoader } from "@webstudio-is/image";
 import { subscribeCommands } from "~/canvas/shared/commands";
 import { updateCollaborativeInstanceRect } from "./collaborative-instance";
-import { $params } from "./stores";
 import { initCanvasApi } from "~/shared/canvas-api";
 import { subscribeFontLoadingDone } from "./shared/font-weight-support";
 import { useDebounceEffect } from "~/shared/hook-utils/use-debounce-effect";
@@ -73,6 +72,7 @@ import { subscribeScrollNewInstanceIntoView } from "./shared/scroll-new-instance
 import { $selectedPage } from "~/shared/awareness";
 import { createInstanceElement } from "./elements";
 import { Body } from "./shared/body";
+import { subscribeScrollbarSize } from "./scrollbar-width";
 
 registerContainers();
 
@@ -94,15 +94,10 @@ const FallbackComponent = ({ error, resetErrorBoundary }: FallbackProps) => {
   );
 };
 
-const useElementsTree = (
-  components: Components,
-  instances: Instances,
-  params: Params
-) => {
+const useElementsTree = (components: Components, instances: Instances) => {
   const page = useStore($selectedPage);
   const isPreviewMode = useStore($isPreviewMode);
   const rootInstanceId = page?.rootInstanceId ?? "";
-  const imageLoader = useMemo(() => createImageLoader({}), []);
 
   if (typeof window === "undefined") {
     // @todo remove after https://github.com/webstudio-is/webstudio/issues/1313 now its needed to be sure that no leaks exists
@@ -119,9 +114,8 @@ const useElementsTree = (
       <ReactSdkContext.Provider
         value={{
           renderer: isPreviewMode ? "preview" : "canvas",
-          imageBaseUrl: "/cgi/image/",
-          assetBaseUrl: params.assetBaseUrl,
-          imageLoader,
+          assetBaseUrl,
+          imageLoader: wsImageLoader,
           resources: {},
         }}
       >
@@ -136,19 +130,12 @@ const useElementsTree = (
         })}
       </ReactSdkContext.Provider>
     );
-  }, [
-    params,
-    instances,
-    rootInstanceId,
-    components,
-    isPreviewMode,
-    imageLoader,
-  ]);
+  }, [instances, rootInstanceId, components, isPreviewMode]);
 };
 
 const DesignMode = () => {
   const debounceEffect = useDebounceEffect();
-  const ref = useRef<Instances>();
+  const ref = useRef<undefined | Instances>(undefined);
 
   useDragAndDrop();
 
@@ -175,6 +162,7 @@ const DesignMode = () => {
     // in both places
     initCopyPaste(options);
     manageDesignModeStyles(options);
+    subscribeScrollbarSize(options);
     updateCollaborativeInstanceRect(options);
     subscribeInstanceSelection(options);
     subscribeInstanceHovering(options);
@@ -189,7 +177,7 @@ const DesignMode = () => {
 
 const ContentEditMode = () => {
   const debounceEffect = useDebounceEffect();
-  const ref = useRef<Instances>();
+  const ref = useRef<undefined | Instances>(undefined);
 
   useEffect(() => {
     const abortController = new AbortController();
@@ -209,6 +197,7 @@ const ContentEditMode = () => {
     const abortController = new AbortController();
     const options = { signal: abortController.signal };
     manageContentEditModeStyles(options);
+    subscribeScrollbarSize(options);
     subscribeInstanceSelection(options);
     subscribeInstanceHovering(options);
     subscribeFontLoadingDone(options);
@@ -221,11 +210,7 @@ const ContentEditMode = () => {
   return null;
 };
 
-type CanvasProps = {
-  params: Params;
-};
-
-export const Canvas = ({ params }: CanvasProps) => {
+export const Canvas = () => {
   useCanvasStore();
   const isDesignMode = useStore($isDesignMode);
   const isContentMode = useStore($isContentMode);
@@ -258,11 +243,6 @@ export const Canvas = ({ params }: CanvasProps) => {
       propsMetas: radixComponentPropsMetas,
       hooks: radixComponentHooks,
     });
-  });
-
-  useMount(() => {
-    // required to compute asset and page props for rendering
-    $params.set(params);
   });
 
   useMount(initCanvasApi);
@@ -305,7 +285,7 @@ export const Canvas = ({ params }: CanvasProps) => {
 
   const components = useStore($registeredComponents);
   const instances = useStore($instances);
-  const elements = useElementsTree(components, instances, params);
+  const elements = useElementsTree(components, instances);
 
   const [isInitialized, setInitialized] = useState(false);
   useEffect(() => {
@@ -318,7 +298,7 @@ export const Canvas = ({ params }: CanvasProps) => {
 
   return (
     <>
-      <GlobalStyles params={params} />
+      <GlobalStyles />
       {/* catch all errors in rendered components */}
       <ErrorBoundary FallbackComponent={FallbackComponent}>
         {elements}

@@ -40,11 +40,6 @@ export const ComponentState = z.object({
 
 export type ComponentState = z.infer<typeof ComponentState>;
 
-const ComponentToken = z.object({
-  variant: z.optional(z.string()),
-  styles: z.array(EmbedTemplateStyleDecl),
-});
-
 export const defaultStates: ComponentState[] = [
   { selector: ":hover", label: "Hover" },
   { selector: ":active", label: "Active" },
@@ -67,17 +62,12 @@ export const WsComponentMeta = z.object({
   // naming every item manually
   indexWithinAncestor: z.optional(z.string()),
   stylable: z.optional(z.boolean()),
-  // specifies whether the instance can be deleted,
-  // copied or dragged out of its parent instance
-  // true by default
-  detachable: z.optional(z.boolean()),
   label: z.optional(z.string()),
   description: z.string().optional(),
   icon: z.string(),
   presetStyle: z.optional(
     z.record(z.string(), z.array(EmbedTemplateStyleDecl))
   ),
-  presetTokens: z.optional(z.record(z.string(), ComponentToken)),
   states: z.optional(z.array(ComponentState)),
   template: z.optional(WsEmbedTemplate),
   order: z.number().optional(),

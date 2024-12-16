@@ -1,11 +1,12 @@
 import { createReadStream, existsSync } from "node:fs";
 import { join } from "node:path";
+import { z } from "zod";
 import { createReadableStreamFromReadable } from "@remix-run/node";
 import type { LoaderFunctionArgs } from "@remix-run/server-runtime";
+import { wsImageLoader } from "@webstudio-is/image";
 import env from "~/env/env.server";
 import { getImageNameAndType } from "~/builder/shared/assets/asset-utils";
-import { z } from "zod";
-import { createImageLoader } from "@webstudio-is/image";
+import { fileUploadPath } from "~/shared/asset-client";
 
 const ImageParams = z.object({
   width: z.string().transform((value) => Math.round(parseFloat(value))),
@@ -72,9 +73,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   }
 
   if (env.RESIZE_ORIGIN !== undefined) {
-    const imageLoader = createImageLoader({});
-
-    const imgHref = imageLoader({
+    const imgHref = wsImageLoader({
       src: name,
       ...imageParameters,
       format: "auto",
@@ -103,14 +102,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     return responseWHeaders;
   }
 
-  if (env.FILE_UPLOAD_PATH === undefined) {
-    throw Error("FILE_UPLOAD_PATH is not provided");
-  }
   // support absolute urls locally
   if (URL.canParse(name)) {
     return fetch(name);
   }
-  const fileUploadPath = env.FILE_UPLOAD_PATH;
   const filePath = join(process.cwd(), fileUploadPath, name);
 
   if (existsSync(filePath) === false) {

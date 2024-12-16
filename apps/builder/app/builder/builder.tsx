@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type JSX, type ReactNode } from "react";
 import { useStore } from "@nanostores/react";
 import { TooltipProvider } from "@radix-ui/react-tooltip";
 import { usePublish, $publisher } from "~/shared/pubsub";
@@ -6,7 +6,6 @@ import type { Build } from "@webstudio-is/project-build";
 import type { Project } from "@webstudio-is/project";
 import { theme, Box, type CSS, Flex, Grid } from "@webstudio-is/design-system";
 import type { AuthPermit } from "@webstudio-is/trpc-interface/index.server";
-import { createImageLoader } from "@webstudio-is/image";
 import { registerContainers, createObjectPool } from "~/shared/sync";
 import {
   ServerSyncStorage,
@@ -31,7 +30,6 @@ import {
   subscribeResources,
   $authTokenPermissions,
   $publisherHost,
-  $imageLoader,
   $isDesignMode,
   $isContentMode,
   $userPlanFeatures,
@@ -159,7 +157,7 @@ const getChromeLayout = ({
 
   if (navigatorLayout === "undocked" && activeSidebarPanel !== "none") {
     return {
-      gridTemplateColumns: `auto ${theme.spacing[30]} 1fr ${theme.spacing[30]}`,
+      gridTemplateColumns: `auto ${theme.sizes.sidebarWidth} 1fr ${theme.sizes.sidebarWidth}`,
       gridTemplateAreas: `
             "header header header header"
             "sidebar navigator main inspector"
@@ -169,7 +167,7 @@ const getChromeLayout = ({
   }
 
   return {
-    gridTemplateColumns: `auto 1fr ${theme.spacing[30]}`,
+    gridTemplateColumns: `auto 1fr ${theme.sizes.sidebarWidth}`,
     gridTemplateAreas: `
           "header header header"
           "sidebar main inspector"
@@ -236,7 +234,6 @@ export const Builder = ({
     // additional data stores
     $project.set(project);
     $publisherHost.set(publisherHost);
-    $imageLoader.set(createImageLoader({}));
     $authPermit.set(authPermit);
     $authToken.set(authToken);
     $userPlanFeatures.set(userPlanFeatures);

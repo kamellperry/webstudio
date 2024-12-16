@@ -1,4 +1,4 @@
-import { forwardRef, useMemo, useRef, type RefObject } from "react";
+import { forwardRef, useMemo, useRef, type JSX, type RefObject } from "react";
 import {
   css,
   canvasPointerEventsPropertyName,
@@ -27,7 +27,7 @@ type CanvasIframeProps = JSX.IntrinsicElements["iframe"];
 const CanvasRectUpdater = ({
   iframeRef,
 }: {
-  iframeRef: RefObject<HTMLIFrameElement>;
+  iframeRef: RefObject<null | HTMLIFrameElement>;
 }) => {
   const [updateCallback, setUpdateCallback] = useState<
     undefined | (() => void)
@@ -45,7 +45,15 @@ const CanvasRectUpdater = ({
       }
 
       const rect = iframeRef.current.getBoundingClientRect();
-      $canvasRect.set(rect);
+
+      $canvasRect.set(
+        new DOMRect(
+          Math.round(rect.x),
+          Math.round(rect.y),
+          Math.round(rect.width),
+          Math.round(rect.height)
+        )
+      );
     };
 
     setUpdateCallback(() => task);
